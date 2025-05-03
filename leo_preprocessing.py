@@ -93,3 +93,77 @@ fig_event = evoked_event.plot(spatial_colors=True, time_unit="s")
 fig_non_event = evoked_non_event.plot(spatial_colors=True, time_unit="s")
 
 # %%
+print(epochs["event"].get_data().shape)
+print("sampling freq", fs)
+#%%
+# Calculate interstimulus intervals for positive and negative events
+pos_trig = np.abs(mat_content["trig"].ravel()) == 1
+
+pos_indices = np.where(pos_trig)[0]
+
+# Convert sample differences to time intervals (in seconds)
+pos_intervals = np.diff(pos_indices) / fs
+
+# Plot interstimulus intervals for positive events and negative events
+plt.figure(figsize=(12, 5))
+
+plt.plot(pos_intervals, marker='o', linestyle='-')
+plt.title("Interstimulus Intervals (Positive Events)")
+plt.xlabel("Event Number")
+plt.ylabel("Interval (s)")
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
+# %%
+min_interval = np.min(pos_intervals)
+print("The minimum interval is:", min_interval)
+
+# %%
+
+# Scikit-learn and Pyriemann ML functionalities
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit
+from pyriemann.estimation import ERPCovariances, XdawnCovariances, Xdawn
+from pyriemann.tangentspace import TangentSpace
+from pyriemann.classification import MDM
+from mne.decoding import Vectorizer
+clfs = OrderedDict()
+clfs['Vect + LR'] = make_pipeline(Vectorizer(), StandardScaler(), LogisticRegression())
+clfs['Vect + RegLDA'] = make_pipeline(Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
+clfs['Xdawn + RegLDA'] = make_pipeline(Xdawn(2, classes=[1]), Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
+
+clfs['XdawnCov + TS'] = make_pipeline(XdawnCovariances(estimator='oas'), TangentSpace(), LogisticRegression())
+clfs['XdawnCov + MDM'] = make_pipeline(XdawnCovariances(estimator='oas'), MDM())
+
+
+clfs['ERPCov + TS'] = make_pipeline(ERPCovariances(), TangentSpace(), LogisticRegression())
+clfs['ERPCov + MDM'] = make_pipeline(ERPCovariances(), MDM())
+
+# format data
+epochs.pick_types(eeg=True)
+X = epochs.get_data() * 1e6
+times = epochs.times
+y = epochs.events[:, -1]
+
+# define cross validation
+cv = StratifiedShuffleSplit(n_splits=10, test_size=0.25, random_state=42)
+
+# run cross validation for each pipeline
+auc = []
+methods = []
+for m in clfs:
+    res = cross_val_score(clfs[m], X, y==2, scoring='roc_auc', cv=cv, n_jobs=-1)
+    auc.extend(res)
+    methods.extend([m]*len(res))
+
+results = pd.DataFrame(data=auc, columns=['AUC'])
+results['Method'] = methods
+
+plt.figure(figsize=[8,4])
+sns.barplot(data=results, x='AUC', y='Method')
+plt.xlim(0.2, 0.85)
+sns.despine()
