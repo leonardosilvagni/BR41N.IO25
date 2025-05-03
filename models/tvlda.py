@@ -35,8 +35,11 @@ class TVLDA:
 
 
     # ------------------------------------------------------------------ #
-    def fit(self, xA: torch.Tensor, xB: torch.Tensor):
+    def fit(self, X: torch.Tensor, y: torch.Tensor, label_xa=1):
         """Train one LDA per window."""
+        xA = torch.tensor(X[y == label_xa])  # class A
+        xB = torch.tensor(X[y != label_xa])  # class B
+        self.label = label_xa
         xA, xB = xA.to(self.device), xB.to(self.device)       # (N_A,F,W), (N_B,F,W)
         NA, F, W = xA.shape
         NB       = xB.size(0)
@@ -85,6 +88,12 @@ class TVLDA:
         b = -0.5 * (muA + muB).mul(w).sum(1)                  # (W,)
 
         self.w, self.b = w, b
+        s = self.score(xA)
+        avg_score = s.mean().item()
+        # Store the expected sign and label.
+        self.expected_sign = 1 if avg_score >= 0 else -1
+        self.label = self.label if self.expected_sign > 0 else -self.label
+        return avg_score
 
     # ------------------------------------------------------------------ #
     def transform(self, x: torch.Tensor) -> torch.Tensor:
@@ -105,25 +114,17 @@ class TVLDA:
         Shape: (N,)
         """
         return self.transform(x).sum(1)
-
-    # ------------------------------------------------------------------ #
-    def fit_score(self, X: torch.Tensor, label: int):
+    def decision_function(self, X: torch.Tensor) -> torch.Tensor:
         """
-        Evaluate the scores for input X (must have shape (N, F, W)) and
-        record the expected sign based on the average score.
-        The provided label is taken as positive if the average score is >= 0,
-        otherwise negative.
+        Compute the continuous decision function scores.
+        These are used for metrics like AUC.
         """
-        # Compute the scalar scores for all trials.
         s = self.score(X)
-        avg_score = s.mean().item()
-        # Store the expected sign and label.
-        self.expected_sign = 1 if avg_score >= 0 else -1
-        self.label = label if self.expected_sign > 0 else -label
-        return avg_score
+        return s
+
 
     # ------------------------------------------------------------------ #
-    def get_label(self, X: torch.Tensor) -> int:
+    def predict(self, X: torch.Tensor) -> int:
         """
         Compute the score for input X and return:
           label   if the score sign matches the expected sign

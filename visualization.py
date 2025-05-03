@@ -1,7 +1,7 @@
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import numpy as np
-
+import matplotlib.pyplot as plt
 def visualize_epochs(epochs):
 
     # Create the time axis (in seconds)
@@ -61,3 +61,50 @@ def visualize_epochs(epochs):
     fig.update_xaxes(title_text="Time to Event (s)", row=4, col=2)
 
     fig.show()
+
+def plot_metrics(conf_matrix, auc):
+    """
+    Plot the confusion matrix and AUC score.
+
+    Args:
+        conf_matrix (np.ndarray): Confusion matrix.
+        auc (float): Area under the ROC curve.
+    """
+    print("Aggregated Confusion Matrix:")
+    print(conf_matrix)
+    print("AUC: {:.4f}".format(auc))
+
+    # Plot the confusion matrix
+    fig, ax = plt.subplots()
+    im = ax.imshow(conf_matrix, cmap='Blues')
+
+    ax.set_xticks(np.arange(2))
+    ax.set_yticks(np.arange(2))
+    ax.set_xticklabels(['Pred Negative', 'Pred Positive'])
+    ax.set_yticklabels(['Actual Negative', 'Actual Positive'])
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    plt.title('Aggregated Confusion Matrix')
+
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, conf_matrix[i, j], ha="center", va="center", color="red")
+
+    plt.colorbar(im)
+    plt.show()
+    tn = conf_matrix[0, 0]
+    fp = conf_matrix[0, 1]
+    fn = conf_matrix[1, 0]
+    tp = conf_matrix[1, 1]
+
+    total = conf_matrix.sum()
+    accuracy = (tp + tn) / total
+
+    precision = tp / (tp + fp) if (tp + fp) != 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) != 0 else 0.0
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) != 0 else 0.0
+
+    print("Accuracy: {:.4f}".format(accuracy))
+    print("Precision: {:.4f}".format(precision))
+    print("Recall: {:.4f}".format(recall))
+    print("F1 Score: {:.4f}".format(f1_score))
