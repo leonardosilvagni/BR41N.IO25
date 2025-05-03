@@ -8,7 +8,7 @@ import scipy.io as sio
 from preprocessing import get_epochs_from_file
 mat_data = {}
 # Load the MAT file (change idx or filename as needed)
-folder_path = "p300-speller"
+folder_path = "/Users/magbi/BR41N.IO25/p300-speller"
 for idx in range(1, 2):
     file_path = os.path.join(folder_path, f"S{idx}.mat")
     print(file_path)

@@ -4,181 +4,163 @@ from preprocessing import *
 # Some standard pythonic imports
 import warnings
 warnings.filterwarnings('ignore')
-import os,numpy as np,pandas as pd
+import os, numpy as np, pandas as pd
 from collections import OrderedDict
 import seaborn as sns
 from matplotlib import pyplot as plt
 
 # MNE functions
-from mne import Epochs,find_events
+from mne import Epochs, find_events
 from mne.decoding import Vectorizer
 
 # Scikit-learn and Pyriemann ML functionalities
 from sklearn.pipeline import make_pipeline
 from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import BaggingClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, StratifiedKFold
-from pyriemann.estimation import ERPCovariances, XdawnCovariances, Xdawn
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix
+
+from pyriemann.estimation import ERPCovariances, XdawnCovariances
 from pyriemann.tangentspace import TangentSpace
 from pyriemann.classification import MDM
 
+from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
+from scipy.stats import skew, kurtosis
 
-#filename = os.path.join('/Users/magbi/BR41N.IO25/p300-speller','S1.mat')
-
-subject_ids = [1, 2, 3, 4, 5]  # or however many subjects you have
-folder = '/Users/magbi/BR41N.IO25/p300-speller'
-
-
-all_X = []
-all_y = []
-all_time = []
-for sid in subject_ids:
-    filepath = os.path.join(folder, f"S{sid}.mat")
-    print(f"Loading subject {sid} from {filepath}")
-    epochs = get_epochs_from_file(filepath)
-    epochs.pick_types(eeg=True)
-    X = epochs.get_data() * 1e6
-    times = epochs.times
-    y = epochs.events[:, -1]
-    all_X.append(X)
-    all_y.append(y)
-    all_time.append(times)
-
-X = np.concatenate(all_X, axis=0)  # shape: (n_epochs_total, n_channels, n_times)
-y = np.concatenate(all_y, axis=0)  # shape: (n_epochs_total,)
-    
-#epochs = get_epochs_from_file(filename)
-#%%
-from sklearn.base import BaseEstimator, TransformerMixin, line
-from sklearn.model_selection import cross_val_predict
-from sklearn.metrics import confusion_matrix
-import numpy as np
-
-class XdawnWrapper(BaseEstimator, TransformerMixin):
-    def __init__(self, n_components=2, classes=[1]):
-        self.n_components = n_components
-        self.classes = classes
-        self.xdawn = Xdawn(self.n_components, classes=self.classes)
-        
-    def fit(self, X, y=None):
-        self.xdawn.fit(X, y)
+# Fisher custom estimator
+class FisherDiscriminantClassifier(BaseEstimator, ClassifierMixin):
+    def fit(self, X, y):
+        X0 = X[y == 0]
+        X1 = X[y == 1]
+        self.mu0 = X0.mean(axis=0)
+        self.mu1 = X1.mean(axis=0)
+        S0 = np.cov(X0, rowvar=False)
+        S1 = np.cov(X1, rowvar=False)
+        Sw = S0 + S1
+        self.w = np.linalg.pinv(Sw) @ (self.mu1 - self.mu0)
+        proj0 = X0 @ self.w
+        proj1 = X1 @ self.w
+        self.threshold = (proj0.mean() + proj1.mean()) / 2
         return self
-        
-    def transform(self, X):
-        return self.xdawn.transform(X)
-#%%
+
+    def predict(self, X):
+        z = X @ self.w
+        return (z > self.threshold).astype(int)
+
+    def decision_function(self, X):
+        return X @ self.w
+
+# Statistical feature extraction
+
+def extract_stat_features(X):
+    feats = []
+    for trial in X:
+        trial_feat = []
+        for ch in trial:
+            AAM = np.max(np.abs(ch))
+            mu = np.mean(ch)
+            std = np.std(ch)
+            med = np.median(ch)
+            sk = skew(ch)
+            ku = kurtosis(ch)
+            WL = np.sum(np.abs(np.diff(ch)))
+            diff1 = np.diff(ch)
+            SSC = np.sum((diff1[:-1] * diff1[1:] < 0) & (np.abs(diff1[:-1] - diff1[1:]) > 1e-6))
+            P = np.mean(ch ** 2)
+            E = np.sum(ch ** 2)
+            trial_feat.extend([AAM, mu, std, med, sk, ku, WL, SSC, P, E])
+        feats.append(trial_feat)
+    return np.array(feats)
+
+# Classifier dictionary
 clfs = OrderedDict()
 clfs['Vect + LR'] = make_pipeline(Vectorizer(), StandardScaler(), LogisticRegression())
 clfs['Vect + RegLDA'] = make_pipeline(Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
-#clfs['Xdawn + RegLDA'] = make_pipeline(XdawnWrapper(2, classes=[1]), Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
-
 clfs['XdawnCov + TS'] = make_pipeline(XdawnCovariances(estimator='oas'), TangentSpace(), LogisticRegression())
 clfs['XdawnCov + MDM'] = make_pipeline(XdawnCovariances(estimator='oas'), MDM())
-
-
 clfs['ERPCov + TS'] = make_pipeline(ERPCovariances(), TangentSpace(), LogisticRegression())
 clfs['ERPCov + MDM'] = make_pipeline(ERPCovariances(), MDM())
-# format data
+clfs['Vect + SVM'] = make_pipeline(Vectorizer(), StandardScaler(), SVC(kernel='rbf', C=3, probability=True))
+clfs['Vect + KNN'] = make_pipeline(Vectorizer(), StandardScaler(), KNeighborsClassifier())
+clfs['Vect + Bagging Tree'] = make_pipeline(Vectorizer(), BaggingClassifier(DecisionTreeClassifier(), n_estimators=50, max_samples=0.8, random_state=42))
+clfs['Stat + Fisher'] = make_pipeline(StandardScaler(), FisherDiscriminantClassifier())
 
+# Loop over subjects
+subject_ids = [1, 2, 3, 4, 5]
+folder = '/Users/magbi/BR41N.IO25/p300-speller'
+all_results = []
 
-# Balance dataset: Select 150 event samples and 150 non-event samples
+for sid in subject_ids:
+    print(f"\nLoading subject S{sid}")
+    filepath = os.path.join(folder, f"S{sid}.mat")
+    epochs = get_epochs_from_file(filepath)
+    epochs.pick_types(eeg=True)
+    X = epochs.get_data() * 1e6
+    y = (epochs.events[:, -1] == 1).astype(int)
 
-# Identify indices for each class (assumes events==1 are event samples)
-event_idx = np.where(y == 1)[0]
-non_event_idx = np.where(y != 1)[0]
+    # Balance dataset
+    pos_idx = np.where(y == 1)[0][:150]
+    neg_idx = np.where(y == 0)[0][:150]
+    idx = np.sort(np.concatenate([pos_idx, neg_idx]))
+    X = X[idx]
+    y = y[idx]
 
-# Randomly sample 150 indices from each class
-# (Assumes there are at least 150 samples in each class)
-np.random.shuffle(event_idx)
-np.random.shuffle(non_event_idx)
-event_idx = event_idx[:150]
-non_event_idx = non_event_idx[:150]
+    X_stat = extract_stat_features(X)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-# Combine and sort indices
-idx = np.sort(np.concatenate([event_idx, non_event_idx]))
+    for name, clf in clfs.items():
+        print(f"Training {name} on S{sid}")
+        X_input = X_stat if "Stat" in name else X
 
-# Subset X and y accordingly
-X = X[idx]
-y = y[idx]
+        try:
+            y_score = cross_val_predict(clf, X_input, y, cv=cv, method='decision_function')
+        except:
+            try:
+                y_score = cross_val_predict(clf, X_input, y, cv=cv, method='predict_proba')[:, 1]
+            except:
+                y_score = cross_val_predict(clf, X_input, y, cv=cv)
 
-# define cross validation
-cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
-# run cross validation for each pipeline
-auc = []
-accuracy = []
-methods = []
-conf_matrices = {}
+        y_pred = (y_score > 0.5).astype(int)
+        acc = accuracy_score(y, y_pred)
+        auc = roc_auc_score(y, y_score)
+        cm = confusion_matrix(y, y_pred)
 
-for m in clfs:
-    print(f'Running {m}')
-    # Compute ROC AUC scores
-    res_auc = cross_val_score(clfs[m], X, y==1, scoring='roc_auc', cv=cv, n_jobs=-1)
-    auc.extend(res_auc)
-    methods.extend([m] * len(res_auc))
-    
-    # Compute accuracy scores
-    res_acc = cross_val_score(clfs[m], X, y==1, scoring='accuracy', cv=cv, n_jobs=-1)
-    accuracy.extend(res_acc)
-    
-    # Compute confusion matrix using cross-validated predictions
-    y_pred = cross_val_predict(clfs[m], X, y==1, cv=cv, n_jobs=-1)
-    cm = confusion_matrix(y==1, y_pred)
-    conf_matrices[m] = cm
+        all_results.append({"Subject": sid, "Method": name, "Accuracy": acc, "AUC": auc, "ConfusionMatrix": cm})
+        print(f"Subject {sid}, {name} - Acc: {acc:.3f}, AUC: {auc:.3f}")
 
-results = pd.DataFrame(data=auc, columns=['AUC'])
-results['Method'] = methods
+# Convert to DataFrame
+results_df = pd.DataFrame(all_results)
+grouped = results_df.groupby("Method").agg({"AUC": ["mean", "std"], "Accuracy": ["mean", "std"]})
+grouped.columns = ['AUC_mean', 'AUC_std', 'Acc_mean', 'Acc_std']
+grouped = grouped.reset_index()
 
-#%%
-# AUC Visualization
-plt.figure(figsize=(8, 4))
-sns.barplot(data=results, x='AUC', y='Method')
-plt.xlim(0.92, 1)
+# Plotting
+plt.figure(figsize=(10, 5))
+plt.barh(grouped['Method'], grouped['AUC_mean'], xerr=grouped['AUC_std'], color='skyblue', edgecolor='black')
+plt.xlabel("Mean AUC")
+plt.title("AUC Scores Across Subjects")
 plt.grid(True)
-sns.despine()
-plt.title("AUC Scores")
-plt.show()
-
-# Accuracy Visualization
-results_acc = pd.DataFrame({'Accuracy': accuracy, 'Method': methods})
-plt.figure(figsize=(8, 4))
-sns.barplot(data=results_acc, x='Accuracy', y='Method')
-plt.xlim(0.5, 1)
-plt.grid(True)
-sns.despine()
-plt.title("Accuracy Scores")
-plt.show()
-
-# Confusion Matrices Visualization
-# Determine grid size
-num_methods = len(conf_matrices)
-cols = 3
-rows = (num_methods // cols) + (num_methods % cols > 0)
-fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4))
-axes = axes.flatten()
-
-for ax, method in zip(axes, conf_matrices):
-    cm = conf_matrices[method]
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, cbar=False)
-    ax.set_title(method)
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("True")
-
-# Hide any unused subplots
-for ax in axes[num_methods:]:
-    ax.axis('off')
-
 plt.tight_layout()
 plt.show()
-# %%
-print('AUC results',auc)
+
+plt.figure(figsize=(10, 5))
+plt.barh(grouped['Method'], grouped['Acc_mean'], xerr=grouped['Acc_std'], color='lightgreen', edgecolor='black')
+plt.xlabel("Mean Accuracy")
+plt.title("Accuracy Scores Across Subjects")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 
 # %%
-for method, cm in conf_matrices.items():
-    TN, FP, FN, TP = cm.ravel()
-    accuracy = (TP+TN) / cm.sum()
-    precision = TP / (TP+FP) if (TP+FP)>0 else 0
-    recall = TP / (TP+FN) if (TP+FN)>0 else 0
-    f1 = 2 * precision * recall / (precision+recall) if (precision+recall)>0 else 0
-    print(f"{method}: Accuracy={accuracy:.3f}, Precision={precision:.3f}, Recall={recall:.3f}, F1 Score={f1:.3f}")
+print("\nBest accuracy per subject:")
+for sid in subject_ids:
+    subject_data = results_df[results_df['Subject'] == sid]
+    best_row = subject_data.loc[subject_data['Accuracy'].idxmax()]
+    print(f"Subject {sid}: {best_row['Method']} with accuracy {best_row['Accuracy']:.3f}")
+
 # %%
