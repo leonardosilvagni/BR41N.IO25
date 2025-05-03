@@ -18,6 +18,11 @@ class TVLDA:
     After .fit():
         self.w : (W, F)   projection vectors, unit-norm
         self.b : (W,)     intercepts
+    After .fit_score(X, expected_label):
+        self.expected_sign : 1 or -1
+        self.label         : chosen label (1 or -1)
+    After .get_label(X):
+        return the label based on X
     """
 
     def __init__(self, *, lamb: float = 1e-4, device: str = "cpu"):
@@ -25,6 +30,9 @@ class TVLDA:
         self.device = device
         self.w:  torch.Tensor | None = None
         self.b:  torch.Tensor | None = None
+        self.expected_sign: int | None = None  # sign (1 or -1) from fit_score
+        self.label: int | None = None  # chosen label after fit_score
+
 
     # ------------------------------------------------------------------ #
     def fit(self, xA: torch.Tensor, xB: torch.Tensor):
@@ -97,3 +105,33 @@ class TVLDA:
         Shape: (N,)
         """
         return self.transform(x).sum(1)
+
+    # ------------------------------------------------------------------ #
+    def fit_score(self, X: torch.Tensor, label: int):
+        """
+        Evaluate the scores for input X (must have shape (N, F, W)) and
+        record the expected sign based on the average score.
+        The provided label is taken as positive if the average score is >= 0,
+        otherwise negative.
+        """
+        # Compute the scalar scores for all trials.
+        s = self.score(X)
+        avg_score = s.mean().item()
+        # Store the expected sign and label.
+        self.expected_sign = 1 if avg_score >= 0 else -1
+        self.label = label if self.expected_sign > 0 else -label
+        return avg_score
+
+    # ------------------------------------------------------------------ #
+    def get_label(self, X: torch.Tensor) -> int:
+        """
+        Compute the score for input X and return:
+          label   if the score sign matches the expected sign
+         -label   otherwise.
+        """
+        if self.expected_sign is None or self.label is None:
+            raise RuntimeError("Call fit_score() first.")
+        s = self.score(X)  # s has shape (N_samples,)
+        trial_sign = torch.where(s >= 0, 1, -1)
+        labels = torch.where(trial_sign == self.expected_sign, self.label, -self.label)
+        return labels
