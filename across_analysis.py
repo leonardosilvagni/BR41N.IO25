@@ -50,7 +50,7 @@ y = np.concatenate(all_y, axis=0)  # shape: (n_epochs_total,)
     
 #epochs = get_epochs_from_file(filename)
 #%%
-from sklearn.base import BaseEstimator, TransformerMixin, line
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import confusion_matrix
 import numpy as np
@@ -81,9 +81,11 @@ clfs['ERPCov + TS'] = make_pipeline(ERPCovariances(), TangentSpace(), LogisticRe
 clfs['ERPCov + MDM'] = make_pipeline(ERPCovariances(), MDM())
 # format data
 
-
+#%%
 # Balance dataset: Select 150 event samples and 150 non-event samples
 
+
+#%%
 # Identify indices for each class (assumes events==1 are event samples)
 event_idx = np.where(y == 1)[0]
 non_event_idx = np.where(y != 1)[0]
@@ -101,6 +103,7 @@ idx = np.sort(np.concatenate([event_idx, non_event_idx]))
 # Subset X and y accordingly
 X = X[idx]
 y = y[idx]
+
 
 # define cross validation
 cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
