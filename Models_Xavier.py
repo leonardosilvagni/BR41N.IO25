@@ -4,13 +4,13 @@ from preprocessing import *
 # Some standard pythonic imports
 import warnings
 warnings.filterwarnings('ignore')
-import os, numpy as np, pandas as pd
+import os,numpy as np,pandas as pd
 from collections import OrderedDict
 import seaborn as sns
 from matplotlib import pyplot as plt
 
 # MNE functions
-from mne import Epochs, find_events
+from mne import Epochs,find_events
 from mne.decoding import Vectorizer
 
 # Scikit-learn and Pyriemann ML functionalities
@@ -22,18 +22,21 @@ from sklearn.ensemble import BaggingClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from sklearn.model_selection import StratifiedKFold, cross_val_predict
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix
-
-from pyriemann.estimation import ERPCovariances, XdawnCovariances
+from sklearn.model_selection import cross_val_score, StratifiedShuffleSplit, StratifiedKFold
+from pyriemann.estimation import ERPCovariances, XdawnCovariances, Xdawn
 from pyriemann.tangentspace import TangentSpace
 from pyriemann.classification import MDM
 
-from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
-from scipy.stats import skew, kurtosis
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import cross_val_predict
+from sklearn.metrics import confusion_matrix
+import numpy as np
 
 # Fisher custom estimator
-class FisherDiscriminantClassifier(BaseEstimator, ClassifierMixin):
+class FisherDiscriminantClassifier(BaseEstimator):
     def fit(self, X, y):
         X0 = X[y == 0]
         X1 = X[y == 1]
@@ -52,11 +55,12 @@ class FisherDiscriminantClassifier(BaseEstimator, ClassifierMixin):
         z = X @ self.w
         return (z > self.threshold).astype(int)
 
-    def decision_function(self, X):
-        return X @ self.w
+    def predict_proba(self, X):
+        z = X @ self.w
+        proba = (z - z.min()) / (z.max() - z.min() + 1e-9)
+        return np.vstack([1 - proba, proba]).T
 
-# Statistical feature extraction
-
+#%%
 def extract_stat_features(X):
     feats = []
     for trial in X:
@@ -64,7 +68,7 @@ def extract_stat_features(X):
         for ch in trial:
             AAM = np.max(np.abs(ch))
             mu = np.mean(ch)
-            std = np.std(ch)
+            std = np.std(ch, ddof=1)
             med = np.median(ch)
             sk = skew(ch)
             ku = kurtosis(ch)
@@ -77,7 +81,7 @@ def extract_stat_features(X):
         feats.append(trial_feat)
     return np.array(feats)
 
-# Classifier dictionary
+#%% define classifiers
 clfs = OrderedDict()
 clfs['Vect + LR'] = make_pipeline(Vectorizer(), StandardScaler(), LogisticRegression())
 clfs['Vect + RegLDA'] = make_pipeline(Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
@@ -85,82 +89,71 @@ clfs['XdawnCov + TS'] = make_pipeline(XdawnCovariances(estimator='oas'), Tangent
 clfs['XdawnCov + MDM'] = make_pipeline(XdawnCovariances(estimator='oas'), MDM())
 clfs['ERPCov + TS'] = make_pipeline(ERPCovariances(), TangentSpace(), LogisticRegression())
 clfs['ERPCov + MDM'] = make_pipeline(ERPCovariances(), MDM())
-clfs['Vect + SVM'] = make_pipeline(Vectorizer(), StandardScaler(), SVC(kernel='rbf', C=3, probability=True))
+clfs['Vect + SVM'] = make_pipeline(Vectorizer(), StandardScaler(), SVC(kernel='rbf', C=3, gamma='scale'))
 clfs['Vect + KNN'] = make_pipeline(Vectorizer(), StandardScaler(), KNeighborsClassifier())
-clfs['Vect + Bagging Tree'] = make_pipeline(Vectorizer(), BaggingClassifier(DecisionTreeClassifier(), n_estimators=50, max_samples=0.8, random_state=42))
+clfs['Vect + Bagging Tree'] = make_pipeline(Vectorizer(), BaggingClassifier(
+    DecisionTreeClassifier(), 
+    n_estimators=50, 
+    max_samples=0.8, 
+    random_state=42
+))
 clfs['Stat + Fisher'] = make_pipeline(StandardScaler(), FisherDiscriminantClassifier())
 
-# Loop over subjects
+#%% loop for all subjects
 subject_ids = [1, 2, 3, 4, 5]
 folder = '/Users/magbi/BR41N.IO25/p300-speller'
+
 all_results = []
 
 for sid in subject_ids:
-    print(f"\nLoading subject S{sid}")
     filepath = os.path.join(folder, f"S{sid}.mat")
+    print(f"\nLoading subject {sid} from {filepath}")
     epochs = get_epochs_from_file(filepath)
     epochs.pick_types(eeg=True)
     X = epochs.get_data() * 1e6
     y = (epochs.events[:, -1] == 1).astype(int)
 
     # Balance dataset
-    pos_idx = np.where(y == 1)[0][:150]
-    neg_idx = np.where(y == 0)[0][:150]
-    idx = np.sort(np.concatenate([pos_idx, neg_idx]))
+    event_idx = np.where(y == 1)[0]
+    non_event_idx = np.where(y == 0)[0]
+    np.random.shuffle(event_idx)
+    np.random.shuffle(non_event_idx)
+    event_idx = event_idx[:150]
+    non_event_idx = non_event_idx[:150]
+    idx = np.sort(np.concatenate([event_idx, non_event_idx]))
     X = X[idx]
     y = y[idx]
 
     X_stat = extract_stat_features(X)
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    X_flat = X.reshape(X.shape[0], -1)
+    cv = StratifiedKFold(n_splits=11, shuffle=True, random_state=42)
 
-    for name, clf in clfs.items():
-        print(f"Training {name} on S{sid}")
-        X_input = X_stat if "Stat" in name else X
+    for m in clfs:
+        print(f'Running {m} for Subject {sid}')
+        X_input = X_stat if 'Stat' in m else X
+        res_auc = cross_val_score(clfs[m], X_input, y, scoring='roc_auc', cv=cv, n_jobs=-1)
+        res_acc = cross_val_score(clfs[m], X_input, y, scoring='accuracy', cv=cv, n_jobs=-1)
+        for auc_val, acc_val in zip(res_auc, res_acc):
+            all_results.append({'Subject': sid, 'Method': m, 'AUC': auc_val, 'Accuracy': acc_val})
 
-        try:
-            y_score = cross_val_predict(clf, X_input, y, cv=cv, method='decision_function')
-        except:
-            try:
-                y_score = cross_val_predict(clf, X_input, y, cv=cv, method='predict_proba')[:, 1]
-            except:
-                y_score = cross_val_predict(clf, X_input, y, cv=cv)
-
-        y_pred = (y_score > 0.5).astype(int)
-        acc = accuracy_score(y, y_pred)
-        auc = roc_auc_score(y, y_score)
-        cm = confusion_matrix(y, y_pred)
-
-        all_results.append({"Subject": sid, "Method": name, "Accuracy": acc, "AUC": auc, "ConfusionMatrix": cm})
-        print(f"Subject {sid}, {name} - Acc: {acc:.3f}, AUC: {auc:.3f}")
-
-# Convert to DataFrame
+#%% Aggregate results
 results_df = pd.DataFrame(all_results)
-grouped = results_df.groupby("Method").agg({"AUC": ["mean", "std"], "Accuracy": ["mean", "std"]})
-grouped.columns = ['AUC_mean', 'AUC_std', 'Acc_mean', 'Acc_std']
-grouped = grouped.reset_index()
-
-# Plotting
 plt.figure(figsize=(10, 5))
-plt.barh(grouped['Method'], grouped['AUC_mean'], xerr=grouped['AUC_std'], color='skyblue', edgecolor='black')
-plt.xlabel("Mean AUC")
+sns.barplot(data=results_df, x='AUC', y='Method', errorbar='sd')
 plt.title("AUC Scores Across Subjects")
+plt.xlim(0.5, 1.0)
 plt.grid(True)
+sns.despine()
 plt.tight_layout()
 plt.show()
 
 plt.figure(figsize=(10, 5))
-plt.barh(grouped['Method'], grouped['Acc_mean'], xerr=grouped['Acc_std'], color='lightgreen', edgecolor='black')
-plt.xlabel("Mean Accuracy")
+sns.barplot(data=results_df, x='Accuracy', y='Method', errorbar='sd')
 plt.title("Accuracy Scores Across Subjects")
+plt.xlim(0.5, 1.0)
 plt.grid(True)
+sns.despine()
 plt.tight_layout()
 plt.show()
-
-# %%
-print("\nBest accuracy per subject:")
-for sid in subject_ids:
-    subject_data = results_df[results_df['Subject'] == sid]
-    best_row = subject_data.loc[subject_data['Accuracy'].idxmax()]
-    print(f"Subject {sid}: {best_row['Method']} with accuracy {best_row['Accuracy']:.3f}")
 
 # %%
