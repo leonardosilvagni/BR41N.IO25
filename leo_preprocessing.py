@@ -5,6 +5,7 @@ import os
 import mne
 from collections import OrderedDict
 import scipy.io as sio
+from preprocessing import get_epochs_from_file
 mat_data = {}
 # Load the MAT file (change idx or filename as needed)
 folder_path = "p300-speller"
