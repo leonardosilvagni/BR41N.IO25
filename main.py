@@ -54,6 +54,7 @@ clfs['LDA'] = LinearDiscriminantAnalysis()
 
 #%%
 for m in clfs:
+    print("###"*20)
     print(f'Running {m}')
     conf_matr, auc = evaluate_model(features_TVLDA, clfs[m], n_splits=5, windows=True)
     plot_metrics(conf_matr, auc)
