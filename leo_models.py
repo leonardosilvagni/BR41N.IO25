@@ -32,50 +32,6 @@ from pyriemann.classification import MDM
 from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
 from scipy.stats import skew, kurtosis
 
-# Fisher custom estimator
-class FisherDiscriminantClassifier(BaseEstimator, ClassifierMixin):
-    def fit(self, X, y):
-        X0 = X[y == 0]
-        X1 = X[y == 1]
-        self.mu0 = X0.mean(axis=0)
-        self.mu1 = X1.mean(axis=0)
-        S0 = np.cov(X0, rowvar=False)
-        S1 = np.cov(X1, rowvar=False)
-        Sw = S0 + S1
-        self.w = np.linalg.pinv(Sw) @ (self.mu1 - self.mu0)
-        proj0 = X0 @ self.w
-        proj1 = X1 @ self.w
-        self.threshold = (proj0.mean() + proj1.mean()) / 2
-        return self
-
-    def predict(self, X):
-        z = X @ self.w
-        return (z > self.threshold).astype(int)
-
-    def decision_function(self, X):
-        return X @ self.w
-
-# Statistical feature extraction
-
-def extract_stat_features(X):
-    feats = []
-    for trial in X:
-        trial_feat = []
-        for ch in trial:
-            AAM = np.max(np.abs(ch))
-            mu = np.mean(ch)
-            std = np.std(ch)
-            med = np.median(ch)
-            sk = skew(ch)
-            ku = kurtosis(ch)
-            WL = np.sum(np.abs(np.diff(ch)))
-            diff1 = np.diff(ch)
-            SSC = np.sum((diff1[:-1] * diff1[1:] < 0) & (np.abs(diff1[:-1] - diff1[1:]) > 1e-6))
-            P = np.mean(ch ** 2)
-            E = np.sum(ch ** 2)
-            trial_feat.extend([AAM, mu, std, med, sk, ku, WL, SSC, P, E])
-        feats.append(trial_feat)
-    return np.array(feats)
 
 # Classifier dictionary
 clfs = OrderedDict()
@@ -99,6 +55,7 @@ for sid in subject_ids:
     print(f"\nLoading subject S{sid}")
     filepath = os.path.join(folder, f"S{sid}.mat")
     epochs = get_epochs_from_file(filepath)
+    epochs = epochs.crop(tmin=0.1, tmax=0.8)
     epochs.pick_types(eeg=True)
     X = epochs.get_data() * 1e6
     y = (epochs.events[:, -1] == 1).astype(int)
