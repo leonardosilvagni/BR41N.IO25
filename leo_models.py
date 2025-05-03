@@ -24,10 +24,33 @@ from pyriemann.tangentspace import TangentSpace
 from pyriemann.classification import MDM
 
 
-filename = os.path.join('p300-speller','S1.mat')
-epochs = get_epochs_from_file(filename)
+#filename = os.path.join('/Users/magbi/BR41N.IO25/p300-speller','S1.mat')
+
+subject_ids = [1, 2, 3, 4, 5]  # or however many subjects you have
+folder = '/Users/magbi/BR41N.IO25/p300-speller'
+
+
+all_X = []
+all_y = []
+all_time = []
+for sid in subject_ids:
+    filepath = os.path.join(folder, f"S{sid}.mat")
+    print(f"Loading subject {sid} from {filepath}")
+    epochs = get_epochs_from_file(filepath)
+    epochs.pick_types(eeg=True)
+    X = epochs.get_data() * 1e6
+    times = epochs.times
+    y = epochs.events[:, -1]
+    all_X.append(X)
+    all_y.append(y)
+    all_time.append(times)
+
+X = np.concatenate(all_X, axis=0)  # shape: (n_epochs_total, n_channels, n_times)
+y = np.concatenate(all_y, axis=0)  # shape: (n_epochs_total,)
+    
+#epochs = get_epochs_from_file(filename)
 #%%
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, line
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import confusion_matrix
 import numpy as np
@@ -48,7 +71,7 @@ class XdawnWrapper(BaseEstimator, TransformerMixin):
 clfs = OrderedDict()
 clfs['Vect + LR'] = make_pipeline(Vectorizer(), StandardScaler(), LogisticRegression())
 clfs['Vect + RegLDA'] = make_pipeline(Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
-clfs['Xdawn + RegLDA'] = make_pipeline(XdawnWrapper(2, classes=[1]), Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
+#clfs['Xdawn + RegLDA'] = make_pipeline(XdawnWrapper(2, classes=[1]), Vectorizer(), LDA(shrinkage='auto', solver='eigen'))
 
 clfs['XdawnCov + TS'] = make_pipeline(XdawnCovariances(estimator='oas'), TangentSpace(), LogisticRegression())
 clfs['XdawnCov + MDM'] = make_pipeline(XdawnCovariances(estimator='oas'), MDM())
@@ -57,10 +80,7 @@ clfs['XdawnCov + MDM'] = make_pipeline(XdawnCovariances(estimator='oas'), MDM())
 clfs['ERPCov + TS'] = make_pipeline(ERPCovariances(), TangentSpace(), LogisticRegression())
 clfs['ERPCov + MDM'] = make_pipeline(ERPCovariances(), MDM())
 # format data
-epochs.pick_types(eeg=True)
-X = epochs.get_data() * 1e6
-times = epochs.times
-y = epochs.events[:, -1]
+
 
 # Balance dataset: Select 150 event samples and 150 non-event samples
 
@@ -83,7 +103,7 @@ X = X[idx]
 y = y[idx]
 
 # define cross validation
-cv = cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
 # run cross validation for each pipeline
 auc = []
 accuracy = []
@@ -123,7 +143,7 @@ plt.show()
 results_acc = pd.DataFrame({'Accuracy': accuracy, 'Method': methods})
 plt.figure(figsize=(8, 4))
 sns.barplot(data=results_acc, x='Accuracy', y='Method')
-plt.xlim(0.92, 1)
+plt.xlim(0.5, 1)
 plt.grid(True)
 sns.despine()
 plt.title("Accuracy Scores")
