@@ -32,6 +32,8 @@ from pyriemann.classification import MDM
 from sklearn.base import BaseEstimator, ClassifierMixin, TransformerMixin
 from scipy.stats import skew, kurtosis
 
+# %%
+
 
 # Classifier dictionary
 clfs = OrderedDict()
@@ -55,13 +57,13 @@ for sid in subject_ids:
     print(f"\nLoading subject S{sid}")
     filepath = os.path.join(folder, f"S{sid}.mat")
     epochs = get_epochs_from_file(filepath)
-    epochs = epochs.crop(tmin=0.1, tmax=0.8)
+    epochs = epochs.crop(tmin= -0.1, tmax=0.8)
     epochs.pick_types(eeg=True)
     X = epochs.get_data() * 1e6
     y = (epochs.events[:, -1] == 1).astype(int)
 
     # Balance dataset
-    pos_idx = np.where(y == 1)[0][:150]
+    pos_idx = np.where(y == 1)[0][:1000]
     neg_idx = np.where(y == 0)[0][:150]
     idx = np.sort(np.concatenate([pos_idx, neg_idx]))
     X = X[idx]
@@ -89,6 +91,7 @@ for sid in subject_ids:
 
         all_results.append({"Subject": sid, "Method": name, "Accuracy": acc, "AUC": auc, "ConfusionMatrix": cm})
         print(f"Subject {sid}, {name} - Acc: {acc:.3f}, AUC: {auc:.3f}")
+        
 
 # Convert to DataFrame
 results_df = pd.DataFrame(all_results)
@@ -119,5 +122,44 @@ for sid in subject_ids:
     subject_data = results_df[results_df['Subject'] == sid]
     best_row = subject_data.loc[subject_data['Accuracy'].idxmax()]
     print(f"Subject {sid}: {best_row['Method']} with accuracy {best_row['Accuracy']:.3f}")
+
+# %%
+
+import pandas as pd
+from sklearn.metrics import precision_score, recall_score, f1_score
+
+# Initialize an empty list to hold metric rows
+metrics = []
+
+# Loop through each row of your results DataFrame
+for row in results_df.itertuples():
+    cm = row.ConfusionMatrix
+    if cm.shape == (2, 2):
+        TN, FP, FN, TP = cm.ravel()
+        accuracy = (TP + TN) / (TP + TN + FP + FN)
+        precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+        recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    else:
+        accuracy = precision = recall = f1 = 0
+
+    metrics.append({
+        "Subject": row.Subject,
+        "Method": row.Method,
+        "Accuracy": accuracy,
+        "AUC": row.AUC,
+        "Precision": precision,
+        "Recall": recall,
+        "F1 Score": f1
+    })
+
+# Convert to DataFrame
+metrics_df = pd.DataFrame(metrics)
+
+# Assuming metrics_df is already created as shown earlier
+best_per_subject = metrics_df.loc[metrics_df.groupby("Subject")["Accuracy"].idxmax()].reset_index(drop=True)
+
+# Display the table
+print(best_per_subject)
 
 # %%
