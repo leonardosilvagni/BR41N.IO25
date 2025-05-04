@@ -510,6 +510,6 @@ for epoch in range(num_epochs):
     if val_acc > max_acc_S5:
         max_acc_S5 = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S5.pth")
-        print(f"\rModel saved with accuracy {max_acc_S5:.4f} - S4", flush=False)
+        print(f"\rModel saved with accuracy {max_acc_S5:.4f} - S5", flush=False)
 # %%
  
