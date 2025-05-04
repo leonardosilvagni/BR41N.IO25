@@ -1,7 +1,7 @@
 from preprocessing import * 
 import numpy as np
-
-def balance_data(X, y, ratio=0.6):
+import torch
+def balance_data(X, y, ratio=0.6, noise=False):
     # Select event and non-event data based on labels
     if ratio == 0:
         return X, y
@@ -34,7 +34,10 @@ def balance_data(X, y, ratio=0.6):
     y_nonevent = -np.ones(X_nonevent_balanced.shape[0])
 
     # Combine the balanced classes
-    X_balanced = np.concatenate([X_event_augmented, X_nonevent_balanced], axis=0)
-    y_balanced = np.concatenate([y_event_augmented, y_nonevent])
+    X_balanced = torch.tensor(np.concatenate([X_event_augmented, X_nonevent_balanced], axis=0))
+    y_balanced = torch.tensor(np.concatenate([y_event_augmented, y_nonevent]))
+    if noise:
+        x_aug = X_balanced + 0.05 * torch.randn_like(X_balanced)
+        return torch.cat([X_balanced, x_aug]), torch.cat([y_balanced, y_balanced])   # if your dataloader can handle batching
 
     return X_balanced, y_balanced
