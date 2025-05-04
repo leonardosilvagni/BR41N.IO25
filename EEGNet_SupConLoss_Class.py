@@ -2,9 +2,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from data_augmentation import balance_data
+import os
 from sklearn.metrics import accuracy_score
-
+os.makedirs('EEGNet_Sup_Class', exist_ok=True)
 class EEGNet(nn.Module):
     def __init__(self, num_channels=8, num_timepoints=226, dropout_rate=0.5, emb_dim=128, num_classes=4):
         super(EEGNet, self).__init__()
@@ -177,35 +178,25 @@ def normalize_subject(X):
     X_reshaped = X.transpose(1, 0, 2).reshape(channels, -1)
     X_reshaped = (X_reshaped - X_reshaped.mean(axis=1, keepdims=True)) / (X_reshaped.std(axis=1, keepdims=True) + 1e-6)
     return X_reshaped.reshape(channels, trials, samples).transpose(1, 0, 2)
-
-times_S1 = epochs_S1.times
-X_S1 = epochs_S1.get_data()*1000 # format is in (trials, channels, samples)
+ratio_augment = 0.5
+X_S1,y_S1,times_S1 = balance_data(epochs_S1,ratio=ratio_augment) # format is in (trials, channels, samples)
 X_S1 = normalize_subject(X_S1)
-y_S1 = epochs_S1.events[:, -1]
 X_train_S1, X_val_S1, y_train_S1, y_val_S1 = train_test_split(X_S1, y_S1, test_size=0.25, random_state=42, stratify=y_S1)
 
-times_S2 = epochs_S2.times
-X_S2 = epochs_S2.get_data()*1000 # format is in (trials, channels, samples)
+X_S2, y_S2, times_S2 = balance_data(epochs_S2,ratio=ratio_augment)  # format is in (trials, channels, samples)
 X_S2 = normalize_subject(X_S2)
-y_S2 = epochs_S2.events[:, -1]
 X_train_S2, X_val_S2, y_train_S2, y_val_S2 = train_test_split(X_S2, y_S2, test_size=0.25, random_state=42, stratify=y_S2)
 
-times_S3 = epochs_S3.times
-X_S3 = epochs_S3.get_data()*1000 # format is in (trials, channels, samples)
+X_S3, y_S3, times_S3 = balance_data(epochs_S3,ratio=ratio_augment)  # format is in (trials, channels, samples)
 X_S3 = normalize_subject(X_S3)
-y_S3 = epochs_S3.events[:, -1]
 X_train_S3, X_val_S3, y_train_S3, y_val_S3 = train_test_split(X_S3, y_S3, test_size=0.25, random_state=42, stratify=y_S3)
 
-times_S4 = epochs_S4.times
-X_S4 = epochs_S4.get_data()*1000 # format is in (trials, channels, samples)
+X_S4, y_S4, times_S4 = balance_data(epochs_S4,ratio=ratio_augment)  # format is in (trials, channels, samples)
 X_S4 = normalize_subject(X_S4)
-y_S4 = epochs_S4.events[:, -1]
 X_train_S4, X_val_S4, y_train_S4, y_val_S4 = train_test_split(X_S4, y_S4, test_size=0.25, random_state=42, stratify=y_S4)
 
-times_S5 = epochs_S5.times
-X_S5 = epochs_S5.get_data()*1000 # format is in (trials, channels, samples)
+X_S5, y_S5, times_S5 = balance_data(epochs_S5,ratio=ratio_augment)  # format is in (trials, channels, samples)
 X_S5 = normalize_subject(X_S5)
-y_S5 = epochs_S5.events[:, -1]
 X_train_S5, X_val_S5, y_train_S5, y_val_S5 = train_test_split(X_S5, y_S5, test_size=0.25, random_state=42, stratify=y_S5)
 
 def get_sampler(y):
@@ -248,14 +239,15 @@ val_dataset = TensorDataset(X_val, y_val)
 # create dataloader
 train_loader = DataLoader(dataset=train_dataset, batch_size= 128, sampler=train_sampler)
 val_loader = DataLoader(dataset=val_dataset, batch_size= 128, sampler=val_sampler)
-
+#%%
+print(y_val)
 #%%
 from tqdm import tqdm#.tqdm
 for batch in tqdm(val_loader):
     inputs, targets = batch
     # count targets = 0 and 1
     targets = targets.numpy()
-    count_0 = np.sum(targets == -1)
+    count_0 = np.sum(targets == 0)
     count_1 = np.sum(targets == 1)
     print(f"Count of -1: {count_0}, Count of 1: {count_1}")
       
@@ -277,7 +269,7 @@ def decay_alpha(epoch, initial_alpha=0.7, final_alpha=0.3, num_epochs=20):
     # Linear decay of alpha
     return initial_alpha - (initial_alpha - final_alpha) * (epoch / num_epochs)
 
-num_epochs = 10
+num_epochs = 50
 max_acc = 0
 initial_alpha = 0.7  # Start with a higher weight for SupCon loss
 final_alpha = 0.3  #
@@ -342,3 +334,4 @@ for epoch in range(num_epochs):
 
 
 # %%
+ 
