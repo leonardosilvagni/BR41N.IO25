@@ -148,8 +148,8 @@ def prepare_general_data(ratio_augment):
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler, shuffle=True)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler, shuffle=True)
     
     return train_loader, val_loader
 
@@ -163,10 +163,11 @@ def prepare_finetuning_data(subject, ratio_augment):
     subj_file = os.path.join(folder, f"{subject}.mat")
     epochs = get_epochs_from_file(subj_file)
     epochs.pick_types(eeg=True)
-    X, y, _ = balance_data(epochs, ratio=ratio_augment)
+    X = epochs.get_data() * 1e3
+    y = epochs.events[:, -1]
     X = normalize_subject(X)
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
-    
+    X_train, y_train = balance_data(X_train, y_train, ratio=ratio_augment)
     X_train = torch.tensor(X_train, dtype=torch.float32)
     y_train = torch.tensor((torch.tensor(y_train, dtype=torch.long)==1).long())
     X_val = torch.tensor(X_val, dtype=torch.float32)
@@ -178,8 +179,8 @@ def prepare_finetuning_data(subject, ratio_augment):
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler, shuffle=True)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler, shuffle=True)
     
     return train_loader, val_loader
 
@@ -297,14 +298,14 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Example: Run general training with a specific ratio
-    general_acc = train_general_model(ratio_augment=0.7, num_epochs=30, emb_dim=64, device=device)
+    general_acc = train_general_model(ratio_augment=0.7, num_epochs=50, emb_dim=64, device=device)
     print(f"\nGeneral Model Best Validation Accuracy: {general_acc:.4f}")
     
     # Example: Fine-tune for subject S1
     subjects = ['S1', 'S2', 'S3', 'S4', 'S5']
     sbj_accs = {}
     for subject in subjects:
-        subj_acc = finetune_subject(subject, ratio_augment=0.7, num_epochs=25, emb_dim=64, device=device)
+        subj_acc = finetune_subject(subject, ratio_augment=0.7, num_epochs=50, emb_dim=64, device=device)
         print(f"\nSubject {subject} Fine-tuning Best Validation Accuracy: {subj_acc:.4f}")
         sbj_accs[subject] = subj_acc
     formatted_sbj_accs = {k: f"{v:.4f}" for k, v in sbj_accs.items()}
