@@ -279,12 +279,12 @@ for epoch in range(num_epochs):
     train_loss = train_supcon_ce(model, train_loader, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
     
     val_acc = evaluate(model, val_loader, device)
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"\rEpoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}", end="", flush=True)
 
     if val_acc > max_acc:
         max_acc = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64.pth")
-        print(f"Model saved with accuracy {max_acc:.4f}  - ALL")
+        print(f"\rModel saved with accuracy {max_acc:.4f}  - ALL", flush=False)
 
 #%% FINETUNING FOR SPECIFIC SUBJECT
 ## S1
@@ -325,12 +325,12 @@ for epoch in range(num_epochs):
     train_loss = train_supcon_ce(model_S1, train_loader_S1, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
     
     val_acc = evaluate(model_S1, val_loader_S1, device)
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"\rEpoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}", end="", flush=True)
 
     if val_acc > max_acc_S1:
         max_acc_S1 = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S1.pth")
-        print(f"Model saved with accuracy {max_acc_S1:.4f} - S1")
+        print(f"\rModel saved with accuracy {max_acc_S1:.4f} - S1", flush=False)
 
 #%%
 ## S2
@@ -370,13 +370,12 @@ for epoch in range(num_epochs):
     train_loss = train_supcon_ce(model_S2, train_loader_S2, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
     
     val_acc = evaluate(model_S2, val_loader_S2, device)
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"\rEpoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}", end="", flush=True)
 
     if val_acc > max_acc_S2:
         max_acc_S2 = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S2.pth")
-        print(f"Model saved with accuracy {max_acc_S2:.4f} - S2")
-
+        print(f"\rModel saved with accuracy {max_acc_S2:.4f} - S2", flush=False)
 
 # %%
 ## S3
@@ -416,12 +415,12 @@ for epoch in range(num_epochs):
     train_loss = train_supcon_ce(model_S3, train_loader_S3, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
     
     val_acc = evaluate(model_S3, val_loader_S3, device)
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"\rEpoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}", end ="", flush=True)
 
     if val_acc > max_acc_S3:
         max_acc_S3 = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S3.pth")
-        print(f"Model saved with accuracy {max_acc_S3:.4f} - S3")
+        print(f"\rModel saved with accuracy {max_acc_S3:.4f} - S3", flush=False)
 
 #%%
 ## S4
@@ -461,12 +460,12 @@ for epoch in range(num_epochs):
     train_loss = train_supcon_ce(model_S4, train_loader_S4, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
     
     val_acc = evaluate(model_S4, val_loader_S4, device)
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"\rEpoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}", end="", flush=True)
 
     if val_acc > max_acc_S4:
         max_acc_S4 = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S4.pth")
-        print(f"Model saved with accuracy {max_acc_S4:.4f} - S4")
+        print(f"\rModel saved with accuracy {max_acc_S4:.4f} - S4", end="", flush=False)
 
 #%%
 ## S5
@@ -506,11 +505,11 @@ for epoch in range(num_epochs):
     train_loss = train_supcon_ce(model_S5, train_loader_S5, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
     
     val_acc = evaluate(model_S5, val_loader_S5, device)
-    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+    print(f"\rEpoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}", end="", flush=True)
 
     if val_acc > max_acc_S5:
         max_acc_S5 = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S5.pth")
-        print(f"Model saved with accuracy {max_acc_S5:.4f} - S4")
+        print(f"\rModel saved with accuracy {max_acc_S5:.4f} - S4", flush=False)
 # %%
  
