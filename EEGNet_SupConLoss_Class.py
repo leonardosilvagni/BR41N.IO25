@@ -178,25 +178,36 @@ def normalize_subject(X):
     X_reshaped = (X_reshaped - X_reshaped.mean(axis=1, keepdims=True)) / (X_reshaped.std(axis=1, keepdims=True) + 1e-6)
     return X_reshaped.reshape(channels, trials, samples).transpose(1, 0, 2)
 ratio_augment = 0.5
-X_S1,y_S1,times_S1 = balance_data(epochs_S1,ratio=ratio_augment) # format is in (trials, channels, samples)
+
+X_S1 = epochs_S1.get_data()*1e3
+y_S1 = epochs_S1.events[:,-1] # format is in (trials, channels, samples)
 X_S1 = normalize_subject(X_S1)
 X_train_S1, X_val_S1, y_train_S1, y_val_S1 = train_test_split(X_S1, y_S1, test_size=0.25, random_state=42, stratify=y_S1)
+X_train_S1, y_train_S1 = balance_data(X_train_S1, y_train_S1,ratio=ratio_augment)  # format is in (trials, channels, samples)
 
-X_S2, y_S2, times_S2 = balance_data(epochs_S2,ratio=ratio_augment)  # format is in (trials, channels, samples)
+X_S2 = epochs_S2.get_data()*1e3
+y_S2 = epochs_S2.events[:,-1]  # format is in (trials, channels, samples)
 X_S2 = normalize_subject(X_S2)
 X_train_S2, X_val_S2, y_train_S2, y_val_S2 = train_test_split(X_S2, y_S2, test_size=0.25, random_state=42, stratify=y_S2)
+X_train_S2, y_train_S2 = balance_data(X_train_S2, y_train_S2, ratio=ratio_augment)
 
-X_S3, y_S3, times_S3 = balance_data(epochs_S3,ratio=ratio_augment)  # format is in (trials, channels, samples)
+X_S3 = epochs_S3.get_data()*1e3
+y_S3 = epochs_S3.events[:,-1]
 X_S3 = normalize_subject(X_S3)
 X_train_S3, X_val_S3, y_train_S3, y_val_S3 = train_test_split(X_S3, y_S3, test_size=0.25, random_state=42, stratify=y_S3)
+X_train_S3, y_train_S3 = balance_data(X_train_S3, y_train_S3, ratio=ratio_augment)
 
-X_S4, y_S4, times_S4 = balance_data(epochs_S4,ratio=ratio_augment)  # format is in (trials, channels, samples)
+X_S4 = epochs_S4.get_data()*1e3
+y_S4 = epochs_S4.events[:,-1]
 X_S4 = normalize_subject(X_S4)
 X_train_S4, X_val_S4, y_train_S4, y_val_S4 = train_test_split(X_S4, y_S4, test_size=0.25, random_state=42, stratify=y_S4)
+X_train_S4, y_train_S4 = balance_data(X_train_S4, y_train_S4, ratio=ratio_augment)
 
-X_S5, y_S5, times_S5 = balance_data(epochs_S5,ratio=ratio_augment)  # format is in (trials, channels, samples)
+X_S5 = epochs_S5.get_data()*1e3
+y_S5 = epochs_S5.events[:,-1]
 X_S5 = normalize_subject(X_S5)
 X_train_S5, X_val_S5, y_train_S5, y_val_S5 = train_test_split(X_S5, y_S5, test_size=0.25, random_state=42, stratify=y_S5)
+X_train_S5, y_train_S5 = balance_data(X_train_S5, y_train_S5, ratio=ratio_augment)
 
 def get_sampler(y):
     unique_classes = torch.unique(y)
