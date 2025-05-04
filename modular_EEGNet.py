@@ -263,7 +263,7 @@ def train_general_model(ratio_augment, num_epochs=50, emb_dim=64, device=None):
         train_loss = train_supcon_ce(model, train_loader, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
         val_acc = evaluate(model, val_loader, device)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Val Acc: {val_acc:.4f}")
-        if val_acc > max_acc:
+        if val_acc > max_acc and epoch > 2: # ignore first two epochs
             max_acc = val_acc
             torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64.pth")
             print(f" --> Model saved with accuracy {max_acc:.4f}")
