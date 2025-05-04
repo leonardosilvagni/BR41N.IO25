@@ -14,3 +14,14 @@ Finetuning:
     S4: 90.3%
     S5: 87.33%
     
+no noise, 70% synthetic data:
+Subject Accuracies, 50 epochs finetuning: {'S1': '0.9867', 'S2': '0.9667', 'S3': '0.9367', 'S4': '0.9567', 'S5': '0.9767'} 
+General model accuracy, across subjects, 50 epochs: 0.9320
+
+noise 5% std, 60% synthetic data:
+Subject Accuracies, 50 epochs finetuning: {'S1': '0.9767', 'S2': '0.9567', 'S3': '0.9100', 'S4': '0.9533', 'S5': '0.9600'} 
+General model accuracy, across subjects, 50: 0.9367
+
+noise 3%std, 60% syntetic data, alpha decay from 0.7 to 0.3 linear
+Subject Accuracies, 25 epochs finetuning: {'S1': '0.9500', 'S2': '0.9533', 'S3': '0.8967', 'S4': '0.9567', 'S5': '0.9633'} 
+General model accuracy, across subjects: 0.9180

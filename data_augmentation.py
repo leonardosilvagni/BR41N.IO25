@@ -37,7 +37,7 @@ def balance_data(X, y, ratio=0.6, noise=False):
     X_balanced = torch.tensor(np.concatenate([X_event_augmented, X_nonevent_balanced], axis=0))
     y_balanced = torch.tensor(np.concatenate([y_event_augmented, y_nonevent]))
     if noise:
-        x_aug = X_balanced + 0.05 * torch.randn_like(X_balanced)
+        x_aug = X_balanced + noise * torch.randn_like(X_balanced)
+        print("Added noise to the data")
         return torch.cat([X_balanced, x_aug]), torch.cat([y_balanced, y_balanced])   # if your dataloader can handle batching
-
     return X_balanced, y_balanced
