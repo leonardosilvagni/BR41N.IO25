@@ -1,0 +1,16 @@
+EEGNet
+Before data augmentation:
+Across subjects 86% accuracy, balanced dataset ( upsampling) + 50 epochs
+Before finetuning, psubject performance:
+    S1: 91%
+    S2: 82.7%
+    S3: 68.7%
+    S4: 84%
+    S5: 85.3%
+Finetuning:
+    S1: 94%
+    S2: 86.7%
+    S3: 76.7%
+    S4: 90.3%
+    S5: 87.33%
+    
