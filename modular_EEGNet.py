@@ -148,7 +148,7 @@ def prepare_general_data(ratio_augment):
         y = epochs.events[:, -1]
         X = normalize_subject(X)
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
-        X_train, y_train = balance_data(X_train, y_train, ratio=ratio_augment)
+        X_train, y_train = balance_data(X_train, y_train, ratio=ratio_augment, noise=True)
         X_trains.append(X_train)
         X_vals.append(X_val)
         y_trains.append(y_train)
@@ -190,7 +190,7 @@ def prepare_finetuning_data(subject, ratio_augment):
     y = epochs.events[:, -1]
     X = normalize_subject(X)
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
-    X_train, y_train = balance_data(X_train, y_train, ratio=ratio_augment)
+    X_train, y_train = balance_data(X_train, y_train, ratio=ratio_augment, noise=True)
     X_train = torch.tensor(X_train, dtype=torch.float32)
     y_train = torch.tensor((torch.tensor(y_train, dtype=torch.long)==1).long())
     X_val = torch.tensor(X_val, dtype=torch.float32)
@@ -321,20 +321,20 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Example: Run general training with a specific ratio
-    general_acc = train_general_model(ratio_augment=0.7, num_epochs=50, emb_dim=64, device=device)
+    general_acc = train_general_model(ratio_augment=0.6, num_epochs=50, emb_dim=64, device=device)
     print(f"\nGeneral Model Best Validation Accuracy: {general_acc:.4f}")
     
     # Example: Fine-tune for subject S1
     subjects = ['S1', 'S2', 'S3', 'S4', 'S5']
     sbj_accs = {}
     for subject in subjects:
-        subj_acc = finetune_subject(subject, ratio_augment=0.7, num_epochs=50, emb_dim=64, device=device)
+        subj_acc = finetune_subject(subject, ratio_augment=0.6, num_epochs=50, emb_dim=64, device=device)
         print(f"\nSubject {subject} Fine-tuning Best Validation Accuracy: {subj_acc:.4f}")
         sbj_accs[subject] = subj_acc
     formatted_sbj_accs = {k: f"{v:.4f}" for k, v in sbj_accs.items()}
     print("\nSubject Accuracies, 25 epochs finetuning:", formatted_sbj_accs, "\nGeneral model accuracy, across subjects:", f"{general_acc:.4f}")
     
     # Example: Experiment with different ratio_augment values
-    #ratio_list = [0.7, 0.8, 1]
+    #ratio_list = [0.6, 0.7, 0.8]
     #exp_results = experiment_ratio_augment(ratio_list, num_epochs=5, emb_dim=64, device=device)
     #print("\nExperiment Results:", exp_results)
