@@ -9,17 +9,18 @@ from collections import OrderedDict
 import seaborn as sns
 from matplotlib import pyplot as plt
 import pywt
+from data_augmentation import balance_data
 
-
-def extract_features_TVLDA(epochs):
+def extract_features_TVLDA(epochs,ratio=0.7):
 
     epochs.pick_types(eeg=True)
     # X = epochs.get_data() * 1e6
     times = epochs.times
     y = epochs.events[:, -1]
 
-    X_event = epochs['event'].get_data()
-    X_nonevent = epochs['non_event'].get_data()
+    #X_event = epochs['event'].get_data()
+    #X_nonevent = epochs['non_event'].get_data()
+    X_event, X_nonevent, y = balance_data(epochs, ratio)
     # from scipy impywtport signal
     # from scipy.signal import cwt, morlet2
     w = 6
