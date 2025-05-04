@@ -114,7 +114,6 @@ def evaluate(model, loader, device):
     acc = accuracy_score(all_labels, all_preds)
     return acc
 
-
 #%%%%%%%
 from preprocessing import *
 # from EEGNet_implementation import EEGNet, SupConLoss, train_supcon
@@ -249,7 +248,7 @@ for batch in tqdm(val_loader):
     targets = targets.numpy()
     count_0 = np.sum(targets == 0)
     count_1 = np.sum(targets == 1)
-    print(f"Count of -1: {count_0}, Count of 1: {count_1}")
+    print(f"Count of 0: {count_0}, Count of 1: {count_1}")
       
 #%%
 ############################# EEGNet portion ##################################
@@ -264,10 +263,9 @@ supcon_loss = SupConLoss(temperature=0.07).to(device)
 ce_loss = nn.CrossEntropyLoss().to(device)
 
 #%%
-
-def decay_alpha(epoch, initial_alpha=0.7, final_alpha=0.3, num_epochs=20):
-    # Linear decay of alpha
-    return initial_alpha - (initial_alpha - final_alpha) * (epoch / num_epochs)
+# def decay_alpha(epoch, initial_alpha=0.7, final_alpha=0.3, num_epochs=20):
+#     # Linear decay of alpha
+#     return initial_alpha - (initial_alpha - final_alpha) * (epoch / num_epochs)
 
 num_epochs = 50
 max_acc = 0
@@ -286,10 +284,10 @@ for epoch in range(num_epochs):
     if val_acc > max_acc:
         max_acc = val_acc
         torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64.pth")
-        print(f"Model saved with accuracy {max_acc:.4f}")
+        print(f"Model saved with accuracy {max_acc:.4f}  - ALL")
 
 #%% FINETUNING FOR SPECIFIC SUBJECT
-
+## S1
 # finetune dataset
 X_train_S1 = torch.tensor(X_train_S1, dtype=torch.float32) # (600, 8, 226)
 y_train_S1 = torch.tensor(y_train_S1, dtype=torch.long) # (600,)
@@ -310,9 +308,13 @@ train_loader_S1 = DataLoader(dataset=train_dataset_S1, batch_size= 128, sampler=
 val_loader_S1 = DataLoader(dataset=val_dataset_S1, batch_size= 128, sampler=val_sampler_S1)
 
 num_epochs = 50
-max_acc = 0
+max_acc_S1 = 0
 initial_alpha = 0.7  # Start with a higher weight for SupCon loss
 final_alpha = 0.3  #
+
+model_S1 = EEGNet(num_channels=8, num_timepoints=226, emb_dim=64)
+model_S1.to(device)
+model_S1.load_state_dict(torch.load("EEGNet_Sup_Class/best_model_64.pth"))
 
 optimizer = optim.Adam(model.parameters(), lr=1e-5)  # lower learning rate for fine-tuning
 
@@ -320,18 +322,195 @@ for epoch in range(num_epochs):
     # alpha = decay_alpha(epoch, initial_alpha, final_alpha, num_epochs)
     alpha = 0.5
 
-    train_loss = train_supcon_ce(model, train_loader_S1, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
+    train_loss = train_supcon_ce(model_S1, train_loader_S1, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
     
-    val_acc = evaluate(model, val_loader_S1, device)
+    val_acc = evaluate(model_S1, val_loader_S1, device)
     print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
 
-    if val_acc > max_acc:
-        max_acc = val_acc
-        torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64.pth")
-        print(f"Model saved with accuracy {max_acc:.4f}")
+    if val_acc > max_acc_S1:
+        max_acc_S1 = val_acc
+        torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S1.pth")
+        print(f"Model saved with accuracy {max_acc_S1:.4f} - S1")
+
+#%%
+## S2
+# finetune dataset
+X_train_S2 = torch.tensor(X_train_S2, dtype=torch.float32) # (600, 8, 226)
+y_train_S2 = torch.tensor(y_train_S2, dtype=torch.long) # (600,)
+y_train_S2 = torch.tensor((y_train_S2 == 1).long())
+
+X_val_S2 = torch.tensor(X_val_S2, dtype=torch.float32) # (400, 8, 226)
+y_val_S2 = torch.tensor(y_val_S2, dtype=torch.long) # (400,)
+y_val_S2 = torch.tensor((y_val_S2 == 1).long())
+
+train_sampler_S2 = get_sampler(y_train_S2)
+val_sampler_S2 = get_sampler(y_val_S2)
+
+train_dataset_S2 = TensorDataset(X_train_S2, y_train_S2)
+val_dataset_S2 = TensorDataset(X_val_S2, y_val_S2)
+
+# create dataloader
+train_loader_S2 = DataLoader(dataset=train_dataset_S2, batch_size= 128, sampler=train_sampler_S2)
+val_loader_S2 = DataLoader(dataset=val_dataset_S2, batch_size= 128, sampler=val_sampler_S2)
+
+max_acc_S2 = 0
+initial_alpha = 0.7  # Start with a higher weight for SupCon loss
+final_alpha = 0.3  #
+
+model_S2 = EEGNet(num_channels=8, num_timepoints=226, emb_dim=64)
+model_S2.to(device)
+model_S2.load_state_dict(torch.load("EEGNet_Sup_Class/best_model_64.pth"))
+
+optimizer = optim.Adam(model.parameters(), lr=1e-5)  # lower learning rate for fine-tuning
+
+for epoch in range(num_epochs):
+    # alpha = decay_alpha(epoch, initial_alpha, final_alpha, num_epochs)
+    alpha = 0.5
+
+    train_loss = train_supcon_ce(model_S2, train_loader_S2, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
+    
+    val_acc = evaluate(model_S2, val_loader_S2, device)
+    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+
+    if val_acc > max_acc_S2:
+        max_acc_S2 = val_acc
+        torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S2.pth")
+        print(f"Model saved with accuracy {max_acc_S2:.4f} - S2")
 
 
+# %%
+## S3
+# finetune dataset
+X_train_S3 = torch.tensor(X_train_S3, dtype=torch.float32) # (600, 8, 226)
+y_train_S3 = torch.tensor(y_train_S3, dtype=torch.long) # (600,)
+y_train_S3 = torch.tensor((y_train_S3 == 1).long())
 
+X_val_S3 = torch.tensor(X_val_S3, dtype=torch.float32) # (400, 8, 226)
+y_val_S3 = torch.tensor(y_val_S3, dtype=torch.long) # (400,)
+y_val_S3 = torch.tensor((y_val_S3 == 1).long())
 
+train_sampler_S3 = get_sampler(y_train_S3)
+val_sampler_S3 = get_sampler(y_val_S3)
+
+train_dataset_S3 = TensorDataset(X_train_S3, y_train_S3)
+val_dataset_S3 = TensorDataset(X_val_S3, y_val_S3)
+
+# create dataloader
+train_loader_S3 = DataLoader(dataset=train_dataset_S3, batch_size= 128, sampler=train_sampler_S3)
+val_loader_S3 = DataLoader(dataset=val_dataset_S3, batch_size= 128, sampler=val_sampler_S3)
+
+max_acc_S3 = 0
+initial_alpha = 0.7  # Start with a higher weight for SupCon loss
+final_alpha = 0.3  #
+
+model_S3 = EEGNet(num_channels=8, num_timepoints=226, emb_dim=64)
+model_S3.to(device)
+model_S3.load_state_dict(torch.load("EEGNet_Sup_Class/best_model_64.pth"))
+
+optimizer = optim.Adam(model.parameters(), lr=1e-5)  # lower learning rate for fine-tuning
+
+for epoch in range(num_epochs):
+    # alpha = decay_alpha(epoch, initial_alpha, final_alpha, num_epochs)
+    alpha = 0.5
+
+    train_loss = train_supcon_ce(model_S3, train_loader_S3, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
+    
+    val_acc = evaluate(model_S3, val_loader_S3, device)
+    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+
+    if val_acc > max_acc_S3:
+        max_acc_S3 = val_acc
+        torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S3.pth")
+        print(f"Model saved with accuracy {max_acc_S3:.4f} - S3")
+
+#%%
+## S4
+# finetune dataset
+X_train_S4 = torch.tensor(X_train_S4, dtype=torch.float32) # (600, 8, 226)
+y_train_S4 = torch.tensor(y_train_S4, dtype=torch.long) # (600,)
+y_train_S4 = torch.tensor((y_train_S4 == 1).long())
+
+X_val_S4 = torch.tensor(X_val_S4, dtype=torch.float32) # (400, 8, 226)
+y_val_S4 = torch.tensor(y_val_S4, dtype=torch.long) # (400,)
+y_val_S4 = torch.tensor((y_val_S4 == 1).long())
+
+train_sampler_S4 = get_sampler(y_train_S4)
+val_sampler_S4 = get_sampler(y_val_S4)
+
+train_dataset_S4 = TensorDataset(X_train_S4, y_train_S4)
+val_dataset_S4 = TensorDataset(X_val_S4, y_val_S4)
+
+# create dataloader
+train_loader_S4 = DataLoader(dataset=train_dataset_S4, batch_size= 128, sampler=train_sampler_S4)
+val_loader_S4 = DataLoader(dataset=val_dataset_S4, batch_size= 128, sampler=val_sampler_S4)
+
+max_acc_S4 = 0
+initial_alpha = 0.7  # Start with a higher weight for SupCon loss
+final_alpha = 0.3  #
+
+model_S4 = EEGNet(num_channels=8, num_timepoints=226, emb_dim=64)
+model_S4.to(device)
+model_S4.load_state_dict(torch.load("EEGNet_Sup_Class/best_model_64.pth"))
+
+optimizer = optim.Adam(model.parameters(), lr=1e-5)  # lower learning rate for fine-tuning
+
+for epoch in range(num_epochs):
+    # alpha = decay_alpha(epoch, initial_alpha, final_alpha, num_epochs)
+    alpha = 0.5
+
+    train_loss = train_supcon_ce(model_S4, train_loader_S4, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
+    
+    val_acc = evaluate(model_S4, val_loader_S4, device)
+    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+
+    if val_acc > max_acc_S4:
+        max_acc_S4 = val_acc
+        torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S4.pth")
+        print(f"Model saved with accuracy {max_acc_S4:.4f} - S4")
+
+#%%
+## S5
+# finetune dataset
+X_train_S5 = torch.tensor(X_train_S5, dtype=torch.float32) # (600, 8, 226)
+y_train_S5 = torch.tensor(y_train_S5, dtype=torch.long) # (600,)
+y_train_S5 = torch.tensor((y_train_S5 == 1).long())
+
+X_val_S5 = torch.tensor(X_val_S5, dtype=torch.float32) # (400, 8, 226)
+y_val_S5 = torch.tensor(y_val_S5, dtype=torch.long) # (400,)
+y_val_S5 = torch.tensor((y_val_S5 == 1).long())
+
+train_sampler_S5 = get_sampler(y_train_S5)
+val_sampler_S5 = get_sampler(y_val_S5)
+
+train_dataset_S5 = TensorDataset(X_train_S5, y_train_S5)
+val_dataset_S5 = TensorDataset(X_val_S5, y_val_S5)
+
+# create dataloader
+train_loader_S5 = DataLoader(dataset=train_dataset_S5, batch_size= 128, sampler=train_sampler_S5)
+val_loader_S5 = DataLoader(dataset=val_dataset_S5, batch_size= 128, sampler=val_sampler_S5)
+
+max_acc_S5 = 0
+initial_alpha = 0.7  # Start with a higher weight for SupCon loss
+final_alpha = 0.3  #
+
+model_S5 = EEGNet(num_channels=8, num_timepoints=226, emb_dim=64)
+model_S5.to(device)
+model_S5.load_state_dict(torch.load("EEGNet_Sup_Class/best_model_64.pth"))
+
+optimizer = optim.Adam(model.parameters(), lr=1e-5)  # lower learning rate for fine-tuning
+
+for epoch in range(num_epochs):
+    # alpha = decay_alpha(epoch, initial_alpha, final_alpha, num_epochs)
+    alpha = 0.5
+
+    train_loss = train_supcon_ce(model_S5, train_loader_S5, optimizer, supcon_loss, ce_loss, device, alpha=alpha)
+    
+    val_acc = evaluate(model_S5, val_loader_S5, device)
+    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {train_loss:.4f}, Validation Accuracy: {val_acc:.4f}")
+
+    if val_acc > max_acc_S5:
+        max_acc_S5 = val_acc
+        torch.save(model.state_dict(), "EEGNet_Sup_Class/best_model_64_S5.pth")
+        print(f"Model saved with accuracy {max_acc_S5:.4f} - S4")
 # %%
  
