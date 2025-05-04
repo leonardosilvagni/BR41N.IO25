@@ -82,6 +82,29 @@ class SupConLoss(nn.Module):
         loss = -mean_log_prob_pos.mean()
         return loss
 
+import torch
+from torch.utils.data import Sampler
+
+class ShuffledWeightedSampler(Sampler):
+    def __init__(self, weights, num_samples, replacement=True):
+        """
+        weights: a 1-D torch tensor of weights for each sample.
+        num_samples: number of samples to draw in each epoch.
+        replacement: whether sampling is done with replacement.
+        """
+        self.weights = weights
+        self.num_samples = num_samples
+        self.replacement = replacement
+
+    def __iter__(self):
+        # Draw samples according to the weights.
+        indices = torch.multinomial(self.weights, self.num_samples, self.replacement)
+        # Shuffle the sampled indices
+        shuffled_indices = indices[torch.randperm(len(indices))]
+        return iter(shuffled_indices.tolist())
+
+    def __len__(self):
+        return self.num_samples
 # ------------------------ Utility Functions -----------------------
 def set_seed(seed=42):
     random.seed(seed)
@@ -97,7 +120,7 @@ def get_sampler(y):
     class_sample_count = torch.tensor([(y == cls).sum() for cls in unique_classes], dtype=torch.float)
     weights = 1.0 / class_sample_count
     sample_weights = torch.tensor([weights[class_to_index[int(label.item())]] for label in y])
-    sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
+    sampler = ShuffledWeightedSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
     return sampler
 
 def normalize_subject(X):
@@ -148,8 +171,8 @@ def prepare_general_data(ratio_augment):
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler, shuffle=True)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler, shuffle=True)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler)
     
     return train_loader, val_loader
 
@@ -179,8 +202,8 @@ def prepare_finetuning_data(subject, ratio_augment):
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler, shuffle=True)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler, shuffle=True)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=128, sampler=train_sampler)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=128, sampler=val_sampler)
     
     return train_loader, val_loader
 
