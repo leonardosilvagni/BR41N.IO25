@@ -48,9 +48,7 @@ clfs['XdawnCov + MDM'] = make_pipeline(XdawnCovariances(estimator='oas'), MDM())
 
 clfs['ERPCov + TS'] = make_pipeline(ERPCovariances(), TangentSpace(), LogisticRegression())
 clfs['ERPCov + MDM'] = make_pipeline(ERPCovariances(), MDM())
-# format data
-clfs['TVLDA'] = TVLDA()
-clfs['LDA'] = LinearDiscriminantAnalysis()
+
 
 #%%
 for m in clfs:
@@ -59,4 +57,3 @@ for m in clfs:
     conf_matr, auc = evaluate_model(features_TVLDA, clfs[m], n_splits=5, windows=True)
     plot_metrics(conf_matr, auc)
 
-# %%
